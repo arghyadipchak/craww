@@ -44,14 +44,10 @@ pub struct Crawler {
 }
 
 impl Crawler {
-  pub fn new(seeds: Vec<String>, store_path: String) -> Result<Crawler, ()> {
-    if let Ok(store) = Store::new(store_path) {
-      let crawler = Crawler {
-        resolver: Resolver::new(
-          ResolverConfig::default(),
-          ResolverOpts::default(),
-        )
-        .unwrap(),
+  pub fn new(seeds: Vec<String>, store: Store) -> Result<Crawler, ()> {
+    match Resolver::new(ResolverConfig::default(), ResolverOpts::default()) {
+      Ok(x) => Ok(Crawler {
+        resolver: x,
         to_visit: VecDeque::from_iter(seeds.iter().map(|x| {
           if x.starts_with("gemini://") {
             x.as_str()[9..].to_string()
@@ -60,10 +56,8 @@ impl Crawler {
           }
         })),
         store: store,
-      };
-      Ok(crawler)
-    } else {
-      Err(())
+      }),
+      Err(_) => Err(()),
     }
   }
 
@@ -139,33 +133,6 @@ impl Crawler {
     };
   }
 }
-
-//   fn recursive_visit(
-//     root: &String,
-//     depth: usize,
-//     max_depth: usize,
-//   ) -> Option<Vec<String>> {
-//     println!("{}", root);
-//     if depth >= max_depth {
-//       return None;
-//     }
-
-//     let mut all_urls: Vec<String> = vec![root.clone()];
-
-//     let urls_on_page = match get_page(&root) {
-//       Some(txt) => parse_links(&root, txt),
-//       _ => return None,
-//     };
-
-//     for u in urls_on_page {
-//       if let Some(mut xs) = recursive_visit(&u, depth + 1, max_depth) {
-//         all_urls.append(&mut xs)
-//       }
-//     }
-
-//     Some(all_urls)
-//   }
-// }
 
 fn get_base_url(url: &String) -> String {
   let mut url = url.to_string();

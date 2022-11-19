@@ -1,2 +1,4 @@
 /target
-store.db
+
+*.db
+*.yml

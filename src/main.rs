@@ -2,20 +2,28 @@ mod crawl;
 mod store;
 
 use crawl::Crawler;
+use store::Store;
 
 fn main() {
-  let craww = Crawler::new(
-    // vec!["gemini.circumlunar.space".to_string()],
-    vec!["geminispace.info/known-hosts".to_string()],
-    "store.db".to_string(),
-  );
-
-  let mut craww = match craww {
-    Err(()) => {
-      println!("Can't open database!");
+  let store = match Store::new("store.db".to_string(), "page_store".to_string())
+  {
+    Ok(x) => x,
+    Err(_) => {
+      println!("Database Connection Error!");
       return;
     }
+  };
+
+  let mut craww = match Crawler::new(
+    vec!["gemini.circumlunar.space".to_string()],
+    // vec!["geminispace.info/known-hosts".to_string()],
+    store,
+  ) {
     Ok(x) => x,
+    Err(_) => {
+      println!("Unable to create Crawler!");
+      return;
+    }
   };
 
   let mut c = 1;
