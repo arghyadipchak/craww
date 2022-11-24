@@ -123,13 +123,11 @@ impl Crawler {
       Some(full_url) => match self.get_page(&full_url) {
         Some(content) => {
           for u in parse_links(&full_url, &content) {
-            // println!("{}", u);
             if !self.store.have_visited(&u) {
               self.to_visit.push_back(u)
             }
           }
           match self.store.add_webpage(&full_url, &content) {
-            Err(x) => println!("{:?}", x),
             _ => (),
           };
           return Some((full_url, content));
