@@ -1,40 +1,35 @@
+mod config;
 mod crawl;
 mod store;
+mod utils;
 
+use config::Config;
 use crawl::Crawler;
 use store::Store;
 
 fn main() {
-  let store = match Store::new("store.db".to_string(), "page_store".to_string())
-  {
+  let config = match Config::new("config.toml".to_string()) {
     Ok(x) => x,
-    Err(_) => {
-      println!("Database Connection Error!");
-      return;
-    }
+    Err(_) => panic!("Unable to read Config!"),
   };
 
-  let mut craww = match Crawler::new(
-    vec!["gemini.circumlunar.space".to_string()],
-    // vec!["geminispace.info/known-hosts".to_string()],
-    store,
-  ) {
+  let store = match Store::new(&config) {
     Ok(x) => x,
-    Err(_) => {
-      println!("Unable to create Crawler!");
-      return;
-    }
+    Err(_) => panic!("Database Connection Error!"),
   };
 
-  let mut c = 1;
+  let mut craww =
+    match Crawler::new(vec![config.root.clone()], config.timeout, store) {
+      Ok(x) => x,
+      Err(_) => panic!("Unable to create Crawler!"),
+    };
 
   while !craww.is_done() {
     match craww.next() {
       Some((url, content)) => {
-        println!("{} {} {}", c, url, content.len());
-        c += 1;
+        println!("{} {}", url, content.len());
       }
-      _ => println!("{}", c),
+      _ => (),
     };
   }
 }

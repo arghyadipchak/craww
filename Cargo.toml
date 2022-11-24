@@ -3,10 +3,18 @@ name = "craww"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+bloom = "0.2.0"
 chrono = "0.4.23"
 rustls = { version = "0.20.7", features = ["dangerous_configuration"] }
 rusqlite = { version = "0.28.0", features = ["chrono"] }
+serde = "1.0.147"
+serde_derive = "1.0.147"
+toml = "0.5.9"
 trust-dns-resolver = "0.22.0"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

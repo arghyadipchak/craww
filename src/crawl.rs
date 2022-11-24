@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::io::{Read, Write};
+use std::io::{Error, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -13,8 +13,7 @@ use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::Resolver;
 
 use crate::store::Store;
-
-const TIMEOUT: u64 = 30;
+use crate::utils::{get_base_url, parse_links};
 
 struct DummyVerifier {}
 impl DummyVerifier {
@@ -40,25 +39,30 @@ impl ServerCertVerifier for DummyVerifier {
 pub struct Crawler {
   resolver: Resolver,
   to_visit: VecDeque<String>,
+  timeout: u64,
   store: Store,
 }
 
 impl Crawler {
-  pub fn new(seeds: Vec<String>, store: Store) -> Result<Crawler, ()> {
-    match Resolver::new(ResolverConfig::default(), ResolverOpts::default()) {
-      Ok(x) => Ok(Crawler {
-        resolver: x,
-        to_visit: VecDeque::from_iter(seeds.iter().map(|x| {
-          if x.starts_with("gemini://") {
-            x.as_str()[9..].to_string()
-          } else {
-            x.to_string()
-          }
-        })),
-        store: store,
-      }),
-      Err(_) => Err(()),
-    }
+  pub fn new(
+    seeds: Vec<String>,
+    timeout: u64,
+    store: Store,
+  ) -> Result<Crawler, Error> {
+    let resolver =
+      Resolver::new(ResolverConfig::default(), ResolverOpts::default())?;
+    return Ok(Crawler {
+      resolver: resolver,
+      to_visit: VecDeque::from_iter(seeds.iter().map(|x| {
+        if x.starts_with("gemini://") {
+          x.as_str()[9..].to_string()
+        } else {
+          x.to_string()
+        }
+      })),
+      timeout: timeout,
+      store: store,
+    });
   }
 
   pub fn is_done(&self) -> bool {
@@ -72,7 +76,7 @@ impl Crawler {
         Some(ip) => ip,
         _ => return None,
       },
-      _ => return None,
+      Err(_) => return None,
     };
 
     let mut cfg = ClientConfig::builder()
@@ -86,17 +90,17 @@ impl Crawler {
     let mut client = match base_url.as_str().try_into() {
       Ok(x) => match ClientConnection::new(Arc::new(cfg), x) {
         Ok(cc) => cc,
-        _ => return None,
+        Err(_) => return None,
       },
-      _ => return None,
+      Err(_) => return None,
     };
 
     let mut socket = match TcpStream::connect_timeout(
       &SocketAddr::new(ip, 1965),
-      Duration::new(TIMEOUT, 0),
+      Duration::new(self.timeout, 0),
     ) {
       Ok(x) => x,
-      _ => return None,
+      Err(_) => return None,
     };
 
     let mut stream = Stream::new(&mut client, &mut socket);
@@ -120,9 +124,12 @@ impl Crawler {
         Some(content) => {
           for u in parse_links(&full_url, &content) {
             // println!("{}", u);
-            self.to_visit.push_back(u);
+            if !self.store.have_visited(&u) {
+              self.to_visit.push_back(u)
+            }
           }
           match self.store.add_webpage(&full_url, &content) {
+            Err(x) => println!("{:?}", x),
             _ => (),
           };
           return Some((full_url, content));
@@ -132,47 +139,4 @@ impl Crawler {
       _ => return None,
     };
   }
-}
-
-fn get_base_url(url: &String) -> String {
-  let mut url = url.to_string();
-  if url.starts_with("gemini://") {
-    url = url[9..].to_string();
-  }
-
-  match url.find("/") {
-    Some(x) => {
-      url = url[..x].to_string();
-    }
-    _ => (),
-  }
-  url
-}
-
-fn parse_links(full_url: &String, txt: &String) -> Vec<String> {
-  let mut urls = vec![];
-  for l in txt.lines() {
-    if l.starts_with("=>") {
-      let xs: Vec<&str> = l[2..].split_whitespace().collect();
-      match xs.get(0) {
-        Some(x) => urls.push(String::from(*x)),
-        None => continue,
-      }
-    }
-  }
-
-  let mut clean_urls = vec![];
-  for u in urls {
-    if u.starts_with("gemini://") {
-      clean_urls.push(u[9..].to_string())
-    } else if !u.contains("://") {
-      if full_url.ends_with("/") {
-        clean_urls.push(format!("{}{}", full_url, u))
-      } else {
-        clean_urls.push(format!("{}/{}", full_url, u))
-      }
-    }
-  }
-
-  clean_urls
 }
