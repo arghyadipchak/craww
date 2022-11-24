@@ -1,0 +1,7 @@
+root = "gemini.circumlunar.space"
+timeout = 5
+database = "store.db"
+
+[cache]
+expected_web_pages = 100000
+false_positive_rate = 0.01

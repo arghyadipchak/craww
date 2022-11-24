@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bloom = "0.2.0"
 chrono = "0.4.23"
+regex = "1.7.0"
 rustls = { version = "0.20.7", features = ["dangerous_configuration"] }
 rusqlite = { version = "0.28.0", features = ["chrono"] }
 serde = "1.0.147"

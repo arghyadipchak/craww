@@ -26,10 +26,8 @@ fn main() {
 
   while !craww.is_done() {
     match craww.next() {
-      Some((url, content)) => {
-        println!("{} {}", url, content.len());
-      }
-      _ => (),
+      Some((url, content)) => println!("{: >6} {}", content.len(), url),
+      None => (),
     };
   }
 }

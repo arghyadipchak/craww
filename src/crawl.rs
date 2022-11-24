@@ -74,7 +74,7 @@ impl Crawler {
     let ip = match self.resolver.lookup_ip(&base_url) {
       Ok(lip) => match lip.iter().next() {
         Some(ip) => ip,
-        _ => return None,
+        None => return None,
       },
       Err(_) => return None,
     };
@@ -89,7 +89,7 @@ impl Crawler {
 
     let mut client = match base_url.as_str().try_into() {
       Ok(x) => match ClientConnection::new(Arc::new(cfg), x) {
-        Ok(cc) => cc,
+        Ok(x) => x,
         Err(_) => return None,
       },
       Err(_) => return None,
@@ -115,7 +115,13 @@ impl Crawler {
       Err(_) => return None,
     }
 
-    Some(content)
+    if !content.starts_with("20 ") {
+      return None;
+    }
+    match content.find("\n") {
+      Some(i) => Some(content[i + 1..].to_string()),
+      None => None,
+    }
   }
 
   pub fn next(&mut self) -> Option<(String, String)> {
@@ -132,9 +138,9 @@ impl Crawler {
           };
           return Some((full_url, content));
         }
-        _ => return None,
+        None => return None,
       },
-      _ => return None,
+      None => return None,
     };
   }
 }
