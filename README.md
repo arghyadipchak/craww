@@ -3,6 +3,21 @@
 Gemini Crawler written in Rust. Information Retrieval project of [Arghyadip](https://github.com/arghyadipchak/) and [Gurdit](https://github.com/arghyadipchak/) @[CMI](https://www.cmi.ac.in)
 
 ## Getting Started
+
+### For Docker (Recommended)
+
+1. Install docker and docker-compose-plugin
+2. Clone the repository
+```sh
+git clone https://github.com/arghyadipchak/craww
+```
+3. Create a config.toml file (example config given)
+4. Build and Run
+```sh
+docker compose up
+```
+### For Non-Docker
+
 1. [Install Rust](https://www.rust-lang.org/tools/install)
 2. Clone the repository
 ```sh
