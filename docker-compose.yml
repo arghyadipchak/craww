@@ -1,0 +1,12 @@
+---
+version: '3.9'
+
+services:
+  craww:
+    build: .
+    image: craww:latest
+    container_name: craww
+    restart: unless-stopped
+    volumes:
+      - ./config.toml:/app/config.toml
+      - ./store.db:/app/store.db
