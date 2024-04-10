@@ -1,6 +1,6 @@
 <h1 align="center">Craww</h3>
 
-Gemini Crawler written in Rust. Information Retrieval project of [Arghyadip](https://github.com/arghyadipchak/) and [Gurdit](https://github.com/arghyadipchak/) @[CMI](https://www.cmi.ac.in)
+Gemini Crawler written in Rust. Information Retrieval project of [Arghyadip](https://github.com/arghyadipchak/) and [Gurdit](https://github.com/16bitmood/) @[CMI](https://www.cmi.ac.in)
 
 ## Getting Started
 
