@@ -1,19 +1,22 @@
-use std::collections::VecDeque;
-use std::io::{Error, Read, Write};
-use std::net::{SocketAddr, TcpStream};
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::{
+  collections::VecDeque,
+  io::{Error, Read, Write},
+  net::{SocketAddr, TcpStream},
+  sync::Arc,
+  time::{Duration, SystemTime},
+};
 
-use rustls::client::{ServerCertVerified, ServerCertVerifier};
 use rustls::{
+  client::{ServerCertVerified, ServerCertVerifier},
   Certificate, ClientConfig, ClientConnection, RootCertStore, ServerName,
   Stream,
 };
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
-use trust_dns_resolver::Resolver;
+use trust_dns_resolver::{
+  config::{ResolverConfig, ResolverOpts},
+  Resolver,
+};
 
-use crate::store::Store;
-use crate::utils::{get_base_url, parse_links};
+use crate::{store::Store, utils};
 
 struct DummyVerifier {}
 impl DummyVerifier {
@@ -25,14 +28,14 @@ impl DummyVerifier {
 impl ServerCertVerifier for DummyVerifier {
   fn verify_server_cert(
     &self,
-    _end_entity: &Certificate,
-    _intermediates: &[Certificate],
-    _server_name: &ServerName,
-    _scts: &mut dyn Iterator<Item = &[u8]>,
-    _ocsp_response: &[u8],
-    _now: SystemTime,
+    _: &Certificate,
+    _: &[Certificate],
+    _: &ServerName,
+    _: &mut dyn Iterator<Item = &[u8]>,
+    _: &[u8],
+    _: SystemTime,
   ) -> Result<ServerCertVerified, rustls::Error> {
-    return Ok(ServerCertVerified::assertion());
+    Ok(ServerCertVerified::assertion())
   }
 }
 
@@ -49,10 +52,11 @@ impl Crawler {
     timeout: u64,
     store: Store,
   ) -> Result<Crawler, Error> {
-    let resolver =
-      Resolver::new(ResolverConfig::default(), ResolverOpts::default())?;
-    return Ok(Crawler {
-      resolver: resolver,
+    Ok(Crawler {
+      resolver: Resolver::new(
+        ResolverConfig::default(),
+        ResolverOpts::default(),
+      )?,
       to_visit: VecDeque::from_iter(seeds.iter().map(|x| {
         if x.starts_with("gemini://") {
           x.as_str()[9..].to_string()
@@ -60,87 +64,58 @@ impl Crawler {
           x.to_string()
         }
       })),
-      timeout: timeout,
-      store: store,
-    });
-  }
-
-  pub fn is_done(&self) -> bool {
-    self.to_visit.is_empty()
+      timeout,
+      store,
+    })
   }
 
   fn get_page(&self, full_url: &String) -> Option<String> {
-    let base_url = get_base_url(full_url);
-    let ip = match self.resolver.lookup_ip(&base_url) {
-      Ok(lip) => match lip.iter().next() {
-        Some(ip) => ip,
-        None => return None,
-      },
-      Err(_) => return None,
-    };
-
     let mut cfg = ClientConfig::builder()
       .with_safe_defaults()
       .with_root_certificates(RootCertStore::empty())
       .with_no_client_auth();
 
-    let mut config = ClientConfig::dangerous(&mut cfg);
-    config.set_certificate_verifier(Arc::new(DummyVerifier::new()));
+    ClientConfig::dangerous(&mut cfg)
+      .set_certificate_verifier(Arc::new(DummyVerifier::new()));
 
-    let mut client = match base_url.as_str().try_into() {
-      Ok(x) => match ClientConnection::new(Arc::new(cfg), x) {
-        Ok(x) => x,
-        Err(_) => return None,
-      },
-      Err(_) => return None,
-    };
+    let base_url = utils::get_base_url(full_url);
+    let domain = base_url.as_str().try_into().ok()?;
+    let ip = self.resolver.lookup_ip(&base_url).ok()?.iter().next()?;
 
-    let mut socket = match TcpStream::connect_timeout(
+    let mut client = ClientConnection::new(Arc::new(cfg), domain).ok()?;
+
+    let mut socket = TcpStream::connect_timeout(
       &SocketAddr::new(ip, 1965),
       Duration::new(self.timeout, 0),
-    ) {
-      Ok(x) => x,
-      Err(_) => return None,
-    };
+    )
+    .ok()?;
 
     let mut stream = Stream::new(&mut client, &mut socket);
-    match stream.write(format!("gemini://{}/\r\n", full_url).as_bytes()) {
-      Ok(_) => (),
-      Err(_) => return None,
-    }
+    stream
+      .write_all(format!("gemini://{}/\r\n", full_url).as_bytes())
+      .ok()?;
 
     let mut content = String::new();
-    match stream.read_to_string(&mut content) {
-      Ok(_) => (),
-      Err(_) => return None,
-    }
+    stream.read_to_string(&mut content).ok()?;
 
-    if !content.starts_with("20 ") {
-      return None;
-    }
-    match content.find("\n") {
-      Some(i) => Some(content[i + 1..].to_string()),
-      None => None,
+    if content.starts_with("20 ") {
+      content.find("\n").map(|i| content[i + 1..].to_string())
+    } else {
+      None
     }
   }
 
   pub fn next(&mut self) -> Option<(String, String)> {
-    match self.to_visit.pop_front() {
-      Some(full_url) => match self.get_page(&full_url) {
-        Some(content) => {
-          for u in parse_links(&full_url, &content) {
-            if !self.store.have_visited(&u) {
-              self.to_visit.push_back(u)
-            }
-          }
-          match self.store.add_webpage(&full_url, &content) {
-            _ => (),
-          };
-          return Some((full_url, content));
-        }
-        None => return None,
-      },
-      None => return None,
-    };
+    let full_url = self.to_visit.pop_front()?;
+    let content = self.get_page(&full_url)?;
+
+    for u in utils::parse_links(&full_url, &content) {
+      if !self.store.have_visited(&u) {
+        self.to_visit.push_back(u);
+      }
+    }
+
+    let _ = self.store.add_webpage(&full_url, &content);
+    Some((full_url, content))
   }
 }

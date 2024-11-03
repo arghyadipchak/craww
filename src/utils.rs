@@ -1,50 +1,40 @@
+use lazy_static::lazy_static;
 use regex::Regex;
 
-pub fn get_base_url(url: &String) -> String {
-  let mut url = url.to_string();
+lazy_static! {
+  static ref LINKS_REGEX: Regex = Regex::new(r"(/\w+/\.\.)").unwrap();
+}
+
+pub fn get_base_url(mut url: &str) -> String {
   if url.starts_with("gemini://") {
-    url = url[9..].to_string();
+    url = &url[9..];
   }
 
   match url.find("/") {
-    Some(x) => {
-      url = url[..x].to_string();
-    }
-    None => (),
+    Some(x) => url[..x].to_string(),
+    None => String::new(),
   }
-  url
 }
 
-pub fn parse_links(full_url: &String, txt: &String) -> Vec<String> {
-  let re = match Regex::new(r"(/\w+/\.\.)") {
-    Ok(x) => x,
-    Err(_) => return vec![],
-  };
-  let mut urls = vec![];
-  for l in txt.lines() {
-    if !l.starts_with("=>") {
-      continue;
-    }
-    let xs: Vec<&str> = l[2..].split_whitespace().collect();
-    match xs.get(0) {
-      Some(x) => {
-        let mut url = String::from(*x);
-        if url.starts_with("gemini://") {
-          url = url[9..].trim_end_matches("/").to_string();
-        } else if url.contains("://") {
-          continue;
-        } else {
-          url = format!(
-            "{}/{}",
-            full_url,
-            url.trim_end_matches('/').trim_start_matches('/')
-          )
-        }
-        urls.push(re.replace_all(url.as_str(), "").to_string());
-      }
-      None => (),
-    }
-  }
+pub fn parse_links(full_url: &str, txt: &str) -> Vec<String> {
+  txt
+    .lines()
+    .filter(|line| line.starts_with("=>"))
+    .filter_map(|line| line[2..].split_whitespace().next())
+    .filter_map(|line| {
+      let url = if let Some(link) = line.strip_prefix("gemini://") {
+        link.trim_end_matches('/')
+      } else if line.contains("://") {
+        return None;
+      } else {
+        &format!(
+          "{}/{}",
+          full_url.trim_end_matches('/'),
+          line.trim_matches('/')
+        )
+      };
 
-  urls
+      Some(LINKS_REGEX.replace_all(url, "").to_string())
+    })
+    .collect()
 }

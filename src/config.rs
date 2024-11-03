@@ -1,7 +1,6 @@
-use std::fs;
-use std::io::Error;
+use std::{fs, io::Error, path::Path};
 
-use serde_derive::Deserialize;
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct Cache {
@@ -18,8 +17,7 @@ pub struct Config {
 }
 
 impl Config {
-  pub fn new(path: String) -> Result<Config, Error> {
-    let st = fs::read_to_string(path)?;
-    return Ok(toml::from_str(st.as_str())?);
+  pub fn read_from_file(path: impl AsRef<Path>) -> Result<Config, Error> {
+    Ok(toml::from_str(&fs::read_to_string(path)?)?)
   }
 }
